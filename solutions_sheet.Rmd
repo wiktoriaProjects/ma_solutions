@@ -1,0 +1,251 @@
+---
+title: "ma_lab_all"
+output: html_document
+date: "2024-05-25"
+---
+Zad 1.4/1.5
+funkcja do obliczenia prawdopodobienstwa przeżycia/śmierci w czasie n lat w wieku x, pr rodzaj prawdopodobieństwa, gdzie 𝑝-prawdopodobieństwo przeżycia, 𝑞- prawdopodobieństwo zgonu.
+```{r}
+tablice_tz$lx <- as.numeric(tablice_tz$lx)
+probability_of_survival <- function(s, x, n, pr) {
+  
+  if (s == "M"){
+    gender <-1
+  }
+  else {
+    gender <-2
+  }
+  n_rounded <- as.integer(n)
+  extra_months <- n - n_rounded
+
+  lx = as.integer(tablice_tz[tablice_tz$s == gender & tablice_tz$x == x, "lx"])
+  lxn = as.integer(tablice_tz[tablice_tz$s == gender & tablice_tz$x == x+n_rounded, "lx"])
+  lxn_next = as.integer(tablice_tz[tablice_tz$s == gender & tablice_tz$x == x+n_rounded+1, "lx"])
+  diff = lxn - lxn_next
+  prob_in_extra_months = (lxn - diff * extra_months) / lxn
+
+  probability = lxn/lx * prob_in_extra_months
+  
+  
+  if (pr == "q"){
+    probability = 1 - probability
+  }
+  
+  return (probability)
+}
+
+```
+
+```{r}
+# Kobieta w wieku 23 lat przeżyje kolejnych 30 lat
+print(probability_of_survival("K", 23, 30, "p"))
+#  Mężczyzna w wieku 23 lat przeżyje kolejnych 30 lat
+print(probability_of_survival("M", 23, 30, "p"))
+# Kobieta w wieku 70 lat umrze w ciągu najbliższych 5 lat
+print(probability_of_survival("K", 70, 5, "q"))
+# Mężczyzna w wieku 70 lat umrze w ciągu najbliższych 5 lat
+print(probability_of_survival("M", 70, 5, "q"))
+# Kobieta w wieku 23 lat przeżyje najbliższych 40 lat a następnie umrze w ciągu kolejnych 10 lat
+print(probability_of_survival("K", 23, 40, "p") * probability_of_survival("K", 63, 10, "q"))
+# Mężczyzna w wieku 23 lat przeżyje najbliższych 40 lat a następnie umrze przed upływem kolejnych 10
+# lat.
+print(probability_of_survival("M", 23, 40, "p") * probability_of_survival("M", 63, 10, "q"))
+```
+
+```{r}
+# Kobieta w wieku 80 lat umrze w trakcie najbliższych 6 miesięcy
+print(probability_of_survival("K", 80, 0.5, "q"))
+# Mężczyzna w wieku 80 lat przeżyje najbliższych 6 miesięcy
+print(probability_of_survival("M", 80, 0.5, "p"))
+# Mężczyzna w wieku 70 lat przeżyje najbliższych 10 lat, a następnie umrze przed upływem kolejnych 2
+# miesięcy
+print(probability_of_survival("K", 70, 10, "p") * probability_of_survival("M", 80, 1/6, "q"))
+# Kobieta w wieku 23 lat przeżyje najbliższych 10,5 roku
+print(probability_of_survival("K", 23, 10.5, "p"))
+# Mężczyzna w wieku 23 lat umrze w ciągu najbliższych 10,5 roku
+print(probability_of_survival("M", 23, 10.5, "q"))
+```
+
+Zadanie 2.1-3 - funkcja na wysokość jednorazowej składki netto dla osoby w wieku 𝑥 w ubezpieczeniu bezterminowym na życie z wypłatą sumy 𝑆𝑈 na koniec roku śmierci, gdzie 𝑠- płeć, 𝑟-wysokość technicznej stopy procentowej.
+
+```{r}
+probability <- function(s, x, n, pr) {
+  
+  if (s == "M"){
+      gender <-1
+  } else {
+      gender <-2
+  }
+  
+ 
+  if (pr == "q"){
+
+  selected_rows <- tablice_tz[tablice_tz$s == gender & tablice_tz$x >= x & tablice_tz$x < x + n, "qx"]
+  sum_values <- sum(selected_rows, na.rm = TRUE)
+  return(sum_values)
+  }
+  
+  else {
+    lx = as.integer(tablice_tz[tablice_tz$s == gender & tablice_tz$x == x, "lx"])
+    lxn = as.integer(tablice_tz[tablice_tz$s == gender & tablice_tz$x == x+n, "lx"])
+    return (lxn/lx)
+  }
+}
+calculate_premium_a <- function(s,x,r) {
+  # Parametry:
+  # s  - płeć (female lub male)
+  # x  - wiek osoby
+  # SU - suma ubezpieczenia
+  # r  - techniczna stopa procentowa 
+  v <- 1 / (1 + r)  # czynnik dyskontowy
+  A_x <- 0  # rezerwa aktuarialna
+  max = 100 - x
+ 
+  for (k in 0:max) {
+    kpx = probability(s, x, k, "p")
+    qxk = probability(s, x + k, 1, "q")
+    zk = (v ^ (k + 1)) * kpx * qxk 
+    A_x = A_x + zk
+  }
+  return(A_x)
+}
+
+calculate_deposit <-function(s,x,SU,r){
+  A = calculate_premium_a(s, x, r)
+  return (SU * A)
+}
+
+calculate_su <- function(s,x,deposit,r ){
+  A = calculate_premium_a(s, x, r)
+  return(deposit/A)
+}
+R <- 0.0238
+
+calculate_deposit("K", 40, 100000, R)
+calculate_deposit("M", 30, 50000, R)
+calculate_su("K", 45, 32682, 0.023)
+
+
+```
+
+Zadanie 2.4 - model dyskretny, jednorazowa skladka netto w ubezpieczeniu terminowym w zależności
+rodzaju ubezpieczenia ( na życie/na dożycie/na życie i dożycie).
+```{r}
+# na zycie
+calculate_a_life<- function(s, x, r, n){
+  
+  A <- 0
+  v <- 1 / (1 + r)
+  max = n - 1
+  
+  for (k in 0:max) {
+    kpx = probability(s, x, k, pr="p")
+    qxk = probability(s, x + k, 1, pr="q")
+    zk = (v ^ (k + 1)) * kpx * qxk 
+    A = A + zk
+  }
+  
+  return (A)
+  
+}
+# polisa na dozycie
+calculate_a_endowment<- function(s, x, r, n){
+  v <- 1 / (1 + r)
+
+  npx = probability(s, x, n, pr="p")
+  A = (v ^ n) * npx
+  return (A)
+  
+}
+# polisa na zycie i dozycie
+calculate_a_both<- function(s, age, r, n){
+  return(calculate_a_endowment(s, age, r, n)+ calculate_a_life(s, age, r, n))
+  
+}
+
+calculate_deposit_type <- function(s, age, SU, r, type, n){
+  if(type == 'na zycie'){
+    A <- calculate_a_life(s, age, r, n)
+  }
+  else if(type == 'na dozycie'){
+    A <- calculate_a_endowment(s, age, r, n)
+  }
+  else{
+    A <- calculate_a_both(s, age, r, n)
+  }
+  return(SU*A)
+  
+}
+```
+
+
+```{r}
+# dla mężczyzny w wieku 50 lat wykupującego polisę 10-letnią na życie przy r=2,38% i sumie ubezpieczenia 50 tys. zł
+calculate_deposit_type("M", 50, 50000, 0.0238,  'na zycie', 10)
+
+# dla kobiety w wieku 40 lat wykupującej polisę 30-letnią na dożycie przy r=2,3% i sumie ubezpieczenia 100 tys. zł
+calculate_deposit_type("K", 40, 100000, 0.023, 'na dozycie', 30)
+# dla mężczyzny w wieku 45 lat wykupującego polisę 35-letnią na życie i dożycie przy r=3,08% i sumie ubezpieczenia 150 tys. zł
+calculate_deposit_type("M", 45, 150000, 0.0308,  'na zycie i dozycie', 35)
+```
+Zadanie 3.1 - przekształcenie funkcji calculate_deposit_type aby można było liczyć wysokość skladki w modelu ciągłym  tzw z wypłatą w chwili śmierci
+
+```{r}
+calculate_deposit_type_cont_model <- function(s, age, SU, r, type, n){
+  if(type == 'na zycie'){
+    a <- calculate_a_life(s, age, r, n)
+    A <- a * r/log(1+r)
+  
+  }
+  else if(type == 'na dozycie'){
+    A <- calculate_a_endowment(s, age, r, n)
+  }
+  else{
+    a <- calculate_a_life(s, age, r, n)
+    a <- a * (r/log(1+r)-1)
+    A_discrete <- calculate_a_both(s, age, r, n)
+    A <- a + A_discrete
+  }
+  return(SU*A)
+  
+}
+# dla mężczyzny w wieku 50 lat wykupującego polisę 10-letnią na życie przy r=2,38% i sumie ubezpieczenia 50 tys. zł
+calculate_deposit_type_cont_model("M", 50, 50000, 0.0238,  'na zycie', 10)
+# dla kobiety w wieku 40 lat wykupującej polisę 30-letnią na dożycie przy r=2,3% i sumie ubezpieczenia 100 tys. zł
+calculate_deposit_type_cont_model("K", 40, 100000, 0.023, 'na dozycie', 30)
+# dla mężczyzny w wieku 45 lat wykupującego polisę 35-letnią na życie i dożycie przy r=3,08% i sumie ubezpieczenia 150 tys. zł
+calculate_deposit_type_cont_model("M", 45, 150000, 0.0308,  'na zycie i dozycie', 35)
+```
+Zadanie 3.2
+Obliczyć jednorazową składkę netto dla polisy bezterminowej na życie dla kobiety oraz dla mężczyzny w
+wieku 45 lat. Suma ubezpieczenia 120tys. zł, techniczna stopa procentowa 1, 3%. Założyć model:
+• z wypłatą na koniec roku śmierci,
+• z wypłatą na koniec miesiąca śmierci,
+• z wypłatą w chwili śmierci.
+
+```{r}
+
+calculate_whole_life<-function(s,x,SU,r){
+  print('wypłata na koniec roku śmierci')
+  A<- calculate_deposit(s, x, SU, r)
+  print(A)
+  
+  print('wypłatą w chwili śmierci')
+  A_day = r/log(1+r)*A
+  print (A_day)
+  
+  monthly_r <- (1 + r)^(1/12) - 1
+  
+  print('wypłata na koniec miesiąca śmierci')
+  A_month = (r/monthly_r) * A
+  print(A_month)
+  
+}
+
+
+
+calculate_whole_life("K", 45, 120000, 0.013)
+#calculate_whole_life("M", 45, 120000, 0.013)
+```
+
+
